@@ -21,6 +21,7 @@ stats.json
 /dist
 /tmp
 /out-tsc
+artifacts/
 
 # dependencies
 /node_modules
