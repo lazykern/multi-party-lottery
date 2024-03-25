@@ -53,18 +53,27 @@ contract Lottery is Ownable, CommitReveal {
         judgingCloseTime = revealingCloseTime + _judgeStageDuration;
     }
 
+    function getHashedLottery(uint16 _choice, string memory _salt)
+        public
+        view
+        returns (bytes32)
+    {
+        require(_choice >= MIN_CHOICE && _choice <= MAX_CHOICE, "");
+        
+        return getSaltedHash(_choice, _salt);
+    }
+
+
     function commitHashedLottery(bytes32 _hashedChoice)
         public
         payable
         returns (uint256)
     {
-        require(msg.value == COMMIT_FEE, "");
-        require(numParticipants < maxParticipants, "");
         require(block.timestamp < commitingCloseTime, "");
-        require(
-            currentStage == Stage.IDLE || currentStage == Stage.COMMITTING,
-            ""
-        );
+
+        require(numParticipants < maxParticipants, "");
+
+        require(msg.value == COMMIT_FEE, "");
 
         if (currentStage == Stage.IDLE) {
             currentStage = Stage.COMMITTING;
@@ -79,11 +88,27 @@ contract Lottery is Ownable, CommitReveal {
         tickets[ticketId] = Ticket({
             committee: msg.sender,
             revealedChoice: 1000,
-            isCommitted: true,
             isRevealed: false,
             isWithdrawn: false
         });
 
         return ticketId;
     }
+
+    function revealLottery(uint256 _ticketId, uint16 _choice, string memory _salt)
+        public
+    {
+        require(
+            block.timestamp >= commitingCloseTime &&
+                block.timestamp < revealingCloseTime,
+            ""
+        );
+        require(tickets[_ticketId].committee == msg.sender, "");
+
+        reveal(_ticketId, _choice, _salt);
+
+        tickets[_ticketId].revealedChoice = _choice;
+        tickets[_ticketId].isRevealed = true;
+    }
+    
 }

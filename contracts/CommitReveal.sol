@@ -28,7 +28,7 @@ contract CommitReveal {
         uint64 block
     );
 
-    function revealChoice(
+    function reveal(
         uint256 index,
         uint16 choice,
         string memory salt
@@ -36,13 +36,13 @@ contract CommitReveal {
         //make sure it hasn't been revealed yet and set it to revealed
         require(
             commits[index].revealed == false,
-            "CommitReveal::revealChoice: Already revealed"
+            "CommitReveal::reveal: Already revealed"
         );
         commits[index].revealed = true;
         //require that they can produce the committed hash
         require(
             getSaltedHash(choice, salt) == commits[index].commit,
-            "CommitReveal::revealChoice: Revealed hash does not match commit"
+            "CommitReveal::reveal: Revealed hash does not match commit"
         );
         emit RevealChoice(msg.sender, choice, salt);
     }
@@ -51,7 +51,7 @@ contract CommitReveal {
     function getSaltedHash(
         uint16 choice,
         string memory salt
-    ) public view returns (bytes32) {
+    ) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(address(this), choice, salt));
     }
 }
