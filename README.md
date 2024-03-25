@@ -1,4 +1,4 @@
-<center><h1>Multi Party Lottery Smart Contract</h1></center>
+# Multi Party Lottery Smart Contract
 
 A smart contract for a lottery system that allows multiple parties to participate in a lottery. The system is divided into multiple stages, each stage has a specific purpose and rules. The lottery is designed to be fair and transparent to all participants.
 
