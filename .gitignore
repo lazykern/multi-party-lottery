@@ -24,6 +24,7 @@ stats.json
 
 # dependencies
 /node_modules
+/.deps
 
 # IDEs and editors
 /.idea
