@@ -6,6 +6,17 @@ import "./CommitReveal.sol";
 import "./Ownable.sol";
 
 contract Lottery is Ownable, CommitReveal {
+    enum Phase {
+        Commiting,
+        Revealing,
+        Judging,
+        Refunding,
+        Finished
+    }
+    Phase internal currentPhase = Phase.Finished;
+
+    bool private _hasBeenReset = true;
+
     uint16 constant MIN_CHOICE = 0;
     uint16 constant MAX_CHOICE = 999;
     uint256 constant COMMIT_FEE = 0.001 ether;
@@ -16,9 +27,10 @@ contract Lottery is Ownable, CommitReveal {
     uint256 public T2;
     uint256 public T3;
 
-    uint256 public commitingCloseTime; // start + T1
-    uint256 public revealingCloseTime; // start + T1 + T2
-    uint256 public judgingCloseTime; // start + T1 + T2 + T3
+    uint256 public tStartTime = 0; // start
+    uint256 public tCommittingCloseTime = 0; // start + T1
+    uint256 public tRevealingCloseTIme = 0; // start + T1 + T2
+    uint256 public tjudgingCloseTime = 0; // start + T1 + T2 + T3
 
     uint256 public numParticipants;
 
@@ -45,29 +57,90 @@ contract Lottery is Ownable, CommitReveal {
         T1 = _commitStageDuration;
         T2 = _revealStageDuration;
         T3 = _judgeStageDuration;
-
-        commitingCloseTime = block.timestamp + T1;
-        revealingCloseTime = commitingCloseTime + T2;
-        judgingCloseTime = revealingCloseTime + T3;
     }
 
-    function getHashedLottery(
-        uint16 _choice,
-        string memory _salt
-    ) public view returns (bytes32) {
-        require(_choice >= MIN_CHOICE && _choice <= MAX_CHOICE, "Invalid choice. Must be between 0 and 999");
+    function getPhase()
+        public
+        view
+        returns (
+            Phase,
+            string memory,
+            uint256,
+            uint256
+        )
+    {
+        if (
+            block.timestamp >= tStartTime && block.timestamp < tCommittingCloseTime
+        ) {
+            return (
+                currentPhase,
+                "Commiting",
+                block.timestamp,
+                tCommittingCloseTime
+            );
+        } else if (
+            block.timestamp >= tCommittingCloseTime &&
+            block.timestamp < tRevealingCloseTIme
+        ) {
+            return (
+                currentPhase,
+                "Revealing",
+                block.timestamp,
+                tRevealingCloseTIme
+            );
+        } else if (
+            block.timestamp >= tRevealingCloseTIme &&
+            block.timestamp < tjudgingCloseTime
+        ) {
+            return (currentPhase, "Judging", block.timestamp, tjudgingCloseTime);
+        } else if (currentPhase == Phase.Refunding || !_hasBeenReset) {
+            return (currentPhase, "Refunding", block.timestamp, 0);
+        } else {
+            return (currentPhase, "Finished", block.timestamp, 0);
+        }
+    }
+
+    function getHashedLottery(uint16 _choice, string memory _salt)
+        public
+        view
+        returns (bytes32)
+    {
+        require(
+            _choice >= MIN_CHOICE && _choice <= MAX_CHOICE,
+            "Invalid choice. Must be between 0 and 999"
+        );
 
         return getSaltedHash(_choice, _salt);
     }
 
-    function commitHashedLottery(
-        bytes32 _hashedChoice
-    ) public payable returns (uint256) {
-        require(block.timestamp < commitingCloseTime, "Commit phase is closed");
+    function commitHashedLottery(bytes32 _hashedChoice)
+        public
+        payable
+        returns (uint256)
+    {
 
-        require(numParticipants < maxParticipants, "Maximum number of participants reached");
 
-        require(msg.value == COMMIT_FEE, "Incorrect commit fee");
+        if (currentPhase == Phase.Finished && numParticipants == 0 && block.timestamp >= tjudgingCloseTime) {
+            _hasBeenReset = false;
+            currentPhase = Phase.Commiting;
+
+            tStartTime = block.timestamp;
+            tCommittingCloseTime = tStartTime + T1;
+            tRevealingCloseTIme = tCommittingCloseTime + T2;
+            tjudgingCloseTime = tRevealingCloseTIme + T3;
+        }
+
+        require(
+            block.timestamp >= tStartTime && block.timestamp < tCommittingCloseTime,
+            "Not in commit phase, please check current phase"
+        );
+
+        require(
+            numParticipants < maxParticipants,
+            "Maximum number of participants reached"
+        );
+
+        require(msg.value == COMMIT_FEE, "Incorrect commit fee, should be 0.001 ether");
 
         uint256 ticketId = numParticipants;
 
@@ -91,17 +164,30 @@ contract Lottery is Ownable, CommitReveal {
 
     function revealLottery(uint16 _choice, string memory _salt) public {
         require(
-            block.timestamp >= commitingCloseTime &&
-                block.timestamp < revealingCloseTime,
-            "Reveal phase is closed"
+            block.timestamp >= tCommittingCloseTime &&
+                block.timestamp < tRevealingCloseTIme,
+            "Reveal phase is closed, please check current phase"
         );
 
-        require(_choice >= MIN_CHOICE && _choice <= MAX_CHOICE, "Invalid choice. Must be between 0 and 999");
+        if (currentPhase == Phase.Commiting) {
+            currentPhase = Phase.Revealing;
+        }
+
+        require(
+            _choice >= MIN_CHOICE && _choice <= MAX_CHOICE,
+            "Invalid choice. Must be between 0 and 999"
+        );
 
         uint256 ticketId = ticketIdOfAddress[msg.sender];
 
-        require(tickets[ticketId].committee == msg.sender, "You are not the owner of this ticket");
-        require(tickets[ticketId].isRevealed == false, "Ticket already revealed");
+        require(
+            tickets[ticketId].committee == msg.sender,
+            "You are not the owner of this ticket"
+        );
+        require(
+            tickets[ticketId].isRevealed == false,
+            "Ticket already revealed"
+        );
 
         reveal(ticketId, _choice, _salt);
 
@@ -110,12 +196,17 @@ contract Lottery is Ownable, CommitReveal {
         tickets[ticketId].isRevealed = true;
     }
 
-    function judgeLottery() public onlyOwner {
+    function judgeLottery() public onlyOwner returns (uint16, address) {
+        
         require(
-            block.timestamp >= revealingCloseTime &&
-                block.timestamp < judgingCloseTime,
-            "Judging phase is closed"
+            block.timestamp >= tRevealingCloseTIme &&
+                block.timestamp < tjudgingCloseTime,
+            "Judging phase is closed, please check current phase"
         );
+
+        if (currentPhase == Phase.Revealing) {
+            currentPhase = Phase.Judging;
+        }
 
         Ticket[] memory validTickets = new Ticket[](numParticipants);
         uint256 validTicketCount = 0;
@@ -131,11 +222,11 @@ contract Lottery is Ownable, CommitReveal {
 
         if (validTicketCount == 0) {
             _rewardOwnerAndReset();
-            return;
+            return (1000, address(0));
         }
 
-        uint256 winningChoice = 0;
-        for (uint256 i = 0; i < validTicketCount; i++) {
+        uint16 winningChoice = 0;
+        for (uint16 i = 0; i < validTicketCount; i++) {
             winningChoice = winningChoice ^ validTickets[i].revealedChoice;
         }
 
@@ -146,17 +237,24 @@ contract Lottery is Ownable, CommitReveal {
         address winner = validTickets[winnerIndex].committee;
 
         _rewardWinnerAndReset(winner);
+
+        return (uint16(winningChoice), winner);
     }
 
     function refundLottery() public {
+        require(block.timestamp >= tjudgingCloseTime, "Not in refund phase, please check current phase");
+
         require(
-            block.timestamp >= judgingCloseTime,
-            "Refund phase is closed"
+            currentPhase == Phase.Judging || currentPhase == Phase.Refunding,
+            "You can't refund now, current phase is not Refunding"
         );
 
         uint256 ticketId = ticketIdOfAddress[msg.sender];
 
-        require(tickets[ticketId].committee == msg.sender, "You are not the owner of this ticket");
+        require(
+            tickets[ticketId].committee == msg.sender,
+            "You are not the owner of this ticket"
+        );
         require(tickets[ticketId].isRefundable, "Ticket is not refundable");
 
         payable(msg.sender).transfer(COMMIT_FEE);
@@ -188,11 +286,15 @@ contract Lottery is Ownable, CommitReveal {
     }
 
     function _reset() internal {
-        numParticipants = 0;
+        _hasBeenReset = true;
 
-        commitingCloseTime = block.timestamp + T1;
-        revealingCloseTime = commitingCloseTime + T2;
-        judgingCloseTime = revealingCloseTime + T3;
+        numParticipants = 0;
+        currentPhase = Phase.Finished;
+
+        tStartTime = 0;
+        tCommittingCloseTime = 0;
+        tRevealingCloseTIme = 0;
+        tjudgingCloseTime = 0;
 
         for (uint256 i = 0; i < maxParticipants; i++) {
             tickets[i] = Ticket({
