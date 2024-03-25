@@ -2,6 +2,12 @@
 
 A smart contract for a lottery system that allows multiple parties to participate in a lottery. The system is divided into multiple stages, each stage has a specific purpose and rules. The lottery is designed to be fair and transparent to all participants.
 
+The contract is deployed on the Sepolia testnet at the address [0xe2dea45a974022223fbadb26423222b02cbf13f4](https://sepolia.etherscan.io/address/0xe2dea45a974022223fbadb26423222b02cbf13f4).
+
+## Note
+
+This project is a part of the Blockchain Engineering course at [Kasetsart University](https://www.ku.ac.th/).
+
 ## Mechanism
 
 ### Contract Stages
@@ -36,7 +42,7 @@ If all participants refund their lottery fee, the contract is reset to the initi
 
 ### Phase Enum
 
-```sol
+```solidity
 enum Phase {
     Commiting,
     Revealing,
@@ -50,7 +56,7 @@ The contract has a `Phase` enum to keep track of the current phase of the lotter
 
 ### Lottery Ticket
 
-```sol
+```solidity
 struct Ticket {
     address committee;
     uint16 revealedChoice;
@@ -68,7 +74,7 @@ The contract has a `Ticket` struct to store the details of a lottery ticket. Eac
 
 ### Contract Variables
 
-```sol
+```solidity
 Phase internal currentPhase = Phase.Finished;
 
 bool private _hasBeenReset = true;
@@ -115,7 +121,7 @@ The contract has the following variables:
 
 ### Constructor
 
-```sol
+```solidity
 constructor(
     uint256 _maxParticipants, // N
     uint256 _commitStageDuration, // T1
@@ -143,7 +149,7 @@ The contract constructor takes the following parameters:
 
 #### `commitHashedLottery`
 
-```sol
+```solidity
 function commitHashedLottery(bytes32 _hashedChoice)
     public
     payable
@@ -212,7 +218,7 @@ The `commitHashedLottery` function allows participants to commit their lottery n
 
 #### `revealLottery`
 
-```sol
+```solidity
 function revealLottery(uint16 _choice, string memory _salt) public {
     require(
         block.timestamp >= tCommittingCloseTime &&
@@ -263,7 +269,7 @@ The `revealLottery` function allows participants to reveal their lottery numbers
 
 #### `judgeLottery`
 
-```sol
+```solidity
 function judgeLottery() public onlyOwner returns (uint16, address) {
 
     require(
@@ -333,7 +339,7 @@ The `judgeLottery` function allows the owner to judge the lottery and determine 
 
 #### `refundLottery`
 
-```sol
+```solidity
 function refundLottery() public {
     require(block.timestamp >= tjudgingCloseTime, "Not in refund phase, please check current phase");
 
