@@ -281,7 +281,7 @@ contract Lottery is Ownable, CommitReveal {
         uint256 ownerReward = (COMMIT_FEE * numParticipants * 1) / 100;
 
         payable(_winnerAddress).transfer(winnerReward);
-        payable(msg.sender).transfer(ownerReward);
+        payable(msg.sender).transfer(judgeReward);
         payable(owner()).transfer(ownerReward);
 
         _reset();
