@@ -196,7 +196,7 @@ contract Lottery is Ownable, CommitReveal {
         tickets[ticketId].isRevealed = true;
     }
 
-    function judgeLottery() public onlyOwner returns (uint16, address) {
+    function judgeLottery() public returns (uint16, address) {
         
         require(
             block.timestamp >= tRevealingCloseTIme &&
@@ -277,9 +277,11 @@ contract Lottery is Ownable, CommitReveal {
 
     function _rewardWinnerAndReset(address _winnerAddress) private {
         uint256 winnerReward = (COMMIT_FEE * numParticipants * 98) / 100;
-        uint256 ownerReward = (COMMIT_FEE * numParticipants * 2) / 100;
+        uint256 judgeReward = (COMMIT_FEE * numParticipants * 1) / 100;
+        uint256 ownerReward = (COMMIT_FEE * numParticipants * 1) / 100;
 
         payable(_winnerAddress).transfer(winnerReward);
+        payable(msg.sender).transfer(ownerReward);
         payable(owner()).transfer(ownerReward);
 
         _reset();
